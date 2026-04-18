@@ -4,8 +4,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import './App.css'
 import { createCliente, getClientes } from './services/clientes'
 import { emptyClienteForm, type ClienteFormData } from './types/cliente'
+import { useAuthStore } from './store/authStore'
+import LoginPage from './pages/LoginPage'
 
 function App() {
+  const { isAuthenticated, logout, user } = useAuthStore()
+
+  if (!isAuthenticated) {
+    return <LoginPage />
+  }
+
+  return <AppShell logout={logout} userName={user?.username} />
+}
+
+function AppShell({ logout, userName }: { logout: () => void; userName?: string }) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState<ClienteFormData>(emptyClienteForm)
 
@@ -50,9 +62,30 @@ function App() {
           </p>
         </div>
 
-        <div className="api-badge">
-          <span>API</span>
-          <strong>{import.meta.env.VITE_API_URL || 'No configurada'}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <div className="api-badge">
+            <span>API</span>
+            <strong>{import.meta.env.VITE_API_URL || 'No configurada'}</strong>
+          </div>
+          <div className="api-badge" style={{ gap: '0.5rem' }}>
+            <span>👤</span>
+            <strong>{userName}</strong>
+            <button
+              type="button"
+              onClick={logout}
+              style={{
+                marginLeft: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#1978e5',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Cerrar sesión
+            </button>
+          </div>
         </div>
       </section>
 

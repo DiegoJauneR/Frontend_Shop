@@ -8,28 +8,33 @@ export const api = axios.create({
   },
 })
 
-// Request interceptor
+// Request interceptor — attach JWT token from Zustand persisted storage
 api.interceptors.request.use(
   (config) => {
-    // Puedes agregar tokens de autenticación aquí
-    // const token = localStorage.getItem('token')
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`
-    // }
+    const stored = localStorage.getItem('auth-storage')
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { state?: { token?: string } }
+        const token = parsed?.state?.token
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`
+        }
+      } catch {
+        // malformed storage, ignore
+      }
+    }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor
+// Response interceptor — clear auth on 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Manejo global de errores
     if (error.response?.status === 401) {
-      // Redirigir al login o refrescar token
+      localStorage.removeItem('auth-storage')
+      window.location.href = '/'
     }
     return Promise.reject(error)
   }
