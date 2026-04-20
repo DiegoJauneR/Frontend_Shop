@@ -74,7 +74,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Productos Card */}
-          <div className="bg-white border border-slate-200 hover:border-primary rounded-3xl p-8 group cursor-pointer flex flex-col justify-between min-h-[320px] relative overflow-hidden transition-all duration-300 hover:shadow-[0_20px_25px_-5px_rgba(58,95,148,0.1),0_10px_10px_-5px_rgba(58,95,148,0.04)]">
+          <div onClick={() => navigate('/inventario')} className="bg-white border border-slate-200 hover:border-primary rounded-3xl p-8 group cursor-pointer flex flex-col justify-between min-h-[320px] relative overflow-hidden transition-all duration-300 hover:shadow-[0_20px_25px_-5px_rgba(58,95,148,0.1),0_10px_10px_-5px_rgba(58,95,148,0.04)]">
             <div className="relative z-10">
               <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-6">
                 <span className="material-symbols-outlined text-slate-600" style={{ fontSize: 30 }}>inventory_2</span>
