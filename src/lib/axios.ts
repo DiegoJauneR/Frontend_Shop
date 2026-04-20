@@ -8,20 +8,32 @@ export const api = axios.create({
   },
 })
 
-// Request interceptor — attach JWT token from Zustand persisted storage
-api.interceptors.request.use(
-  (config) => {
+// In-memory token — always read synchronously by the request interceptor
+let _token: string | null = null
+
+export function setAuthToken(token: string | null) {
+  _token = token
+}
+
+// Restore token from persisted storage on app start
+;(function restoreToken() {
+  try {
     const stored = localStorage.getItem('auth-storage')
     if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as { state?: { token?: string } }
-        const token = parsed?.state?.token
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`
-        }
-      } catch {
-        // malformed storage, ignore
-      }
+      const parsed = JSON.parse(stored) as { state?: { token?: string } }
+      const token = parsed?.state?.token
+      if (token) _token = token
+    }
+  } catch {
+    // ignore malformed storage
+  }
+})()
+
+// Request interceptor — reads in-memory token, guaranteed synchronous
+api.interceptors.request.use(
+  (config) => {
+    if (_token) {
+      config.headers.Authorization = `Bearer ${_token}`
     }
     return config
   },
@@ -33,8 +45,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      setAuthToken(null)
       localStorage.removeItem('auth-storage')
-      window.location.href = '/'
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

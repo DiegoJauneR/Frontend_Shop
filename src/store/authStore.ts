@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '../types/user'
+import { setAuthToken } from '../lib/axios'
 
 interface AuthState {
   token: string | null
@@ -17,9 +18,15 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       isAuthenticated: false,
-      setToken: (token) => set({ token, isAuthenticated: true }),
+      setToken: (token) => {
+        setAuthToken(token)
+        set({ token, isAuthenticated: true })
+      },
       setUser: (user) => set({ user }),
-      logout: () => set({ token: null, user: null, isAuthenticated: false }),
+      logout: () => {
+        setAuthToken(null)
+        set({ token: null, user: null, isAuthenticated: false })
+      },
     }),
     {
       name: 'auth-storage',

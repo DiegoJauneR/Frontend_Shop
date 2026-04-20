@@ -1,4 +1,4 @@
-import { api } from '../lib/axios'
+import { api, setAuthToken } from '../lib/axios'
 import type { LoginCredentials, TokenResponse, User } from '../types/user'
 
 export async function login(credentials: LoginCredentials): Promise<TokenResponse> {
@@ -10,6 +10,10 @@ export async function login(credentials: LoginCredentials): Promise<TokenRespons
   const response = await api.post<TokenResponse>('/auth/login', formData, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   })
+
+  // Set token immediately on the axios instance so every subsequent request has it
+  setAuthToken(response.data.access_token)
+
   return response.data
 }
 

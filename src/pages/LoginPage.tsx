@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { login, getMe } from '../services/auth'
 import { useAuthStore } from '../store/authStore'
 
@@ -16,7 +17,8 @@ type LoginForm = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
-  const { setToken, setUser } = useAuthStore()
+  const { setToken, setUser, isAuthenticated } = useAuthStore()
+  const navigate = useNavigate()
 
   const {
     register,
@@ -35,7 +37,14 @@ export default function LoginPage() {
       setUser(user)
       return user
     },
+    onSuccess: () => {
+      navigate('/dashboard', { replace: true })
+    },
   })
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
 
   function onSubmit(data: LoginForm) {
     loginMutation.mutate(data)
