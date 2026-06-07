@@ -181,7 +181,7 @@ export default function InventarioPage() {
     <div className="bg-white font-body text-on-surface min-h-screen overflow-x-hidden">
       {/* TopNavBar — same as DashboardPage */}
       <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100">
-        <div className="flex justify-between items-center px-8 py-4 max-w-screen-2xl mx-auto">
+        <div className="flex justify-between items-center px-4 sm:px-5 lg:px-6 py-4 max-w-screen-2xl mx-auto">
           <div className="flex items-center gap-3 text-xl font-bold tracking-tight text-slate-900 font-headline">
             <div
               className="w-9 h-9 rounded-full shadow-sm flex items-center justify-center text-white font-bold text-xs"
