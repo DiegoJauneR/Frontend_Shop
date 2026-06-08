@@ -21,6 +21,8 @@ export async function createProducto(data: ProductoFormData) {
     cod_barra: data.cod_barra || null,
     categoria: data.categoria || null,
     costo: data.costo || null,
+    unidad: data.unidad || 'unidad',
+    tipo_venta: data.tipo_venta,
   }
   const response = await api.post<Producto>('/productos', payload)
   return response.data
@@ -34,6 +36,8 @@ export async function updateProducto(id: number, data: Partial<ProductoFormData>
   if (data.cod_barra !== undefined) payload.cod_barra = data.cod_barra || null
   if (data.categoria !== undefined) payload.categoria = data.categoria || null
   if (data.costo !== undefined) payload.costo = data.costo || null
+  if (data.unidad !== undefined) payload.unidad = data.unidad || 'unidad'
+  if (data.tipo_venta !== undefined) payload.tipo_venta = data.tipo_venta
 
   const response = await api.put<Producto>(`/productos/${id}`, payload)
   return response.data

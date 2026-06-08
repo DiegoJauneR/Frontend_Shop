@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '../store/authStore'
+import AppTopBar from '../components/AppTopBar'
 import {
   getProductos,
   createProducto,
@@ -21,9 +20,6 @@ function formatCurrency(value: string | null | undefined): string {
 }
 
 export default function InventarioPage() {
-  const navigate = useNavigate()
-  const { user, logout } = useAuthStore()
-
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -113,6 +109,8 @@ export default function InventarioPage() {
       nombre: p.nombre,
       costo: p.costo ?? '',
       precio: p.precio,
+      unidad: p.unidad ?? 'unidad',
+      tipo_venta: (p.tipo_venta === 'peso' ? 'peso' : 'unidad'),
     })
     setFormError(null)
     setModalOpen(true)
@@ -171,54 +169,10 @@ export default function InventarioPage() {
     }
   }
 
-  function handleLogout() {
-    logout()
-    navigate('/login', { replace: true })
-  }
-
   // ---- Render ----
   return (
     <div className="bg-white font-body text-on-surface min-h-screen overflow-x-hidden">
-      {/* TopNavBar — same as DashboardPage */}
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100">
-        <div className="flex justify-between items-center px-4 sm:px-5 lg:px-6 py-4 max-w-screen-2xl mx-auto">
-          <div className="flex items-center gap-3 text-xl font-bold tracking-tight text-slate-900 font-headline">
-            <div
-              className="w-9 h-9 rounded-full shadow-sm flex items-center justify-center text-white font-bold text-xs"
-              style={{ background: soulGradient }}
-            >
-              DO
-            </div>
-            <span>Don Oscar</span>
-          </div>
-
-          <div className="hidden md:flex items-center gap-8 font-headline text-sm font-semibold tracking-wide">
-            <a
-              className="text-slate-500 hover:text-primary transition-colors cursor-pointer"
-              onClick={() => navigate('/dashboard')}
-            >
-              Inicio
-            </a>
-            <span className="text-primary border-b-2 border-primary pb-0.5">Productos</span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2 text-slate-600 font-headline text-sm font-semibold tracking-wide">
-                <span className="material-symbols-outlined text-primary">account_circle</span>
-                <span className="hidden sm:inline">{user?.username ?? 'Perfil'}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-700 transition-colors font-headline"
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>logout</span>
-                Cerrar sesión
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppTopBar active="productos" />
 
       <div className="pt-16 flex min-h-screen">
         {/* Sidebar — Category Filter */}
@@ -582,6 +536,39 @@ export default function InventarioPage() {
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
                   placeholder="Ej: 779012345678"
                 />
+              </div>
+
+              {/* Tipo de venta */}
+              <div>
+                <label className="block text-xs font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
+                  Tipo de venta
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, tipo_venta: 'unidad', unidad: 'unidad' }))}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-headline font-bold border transition ${
+                      form.tipo_venta === 'unidad'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>inventory_2</span>
+                    Por unidad
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, tipo_venta: 'peso', unidad: 'kg' }))}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-headline font-bold border transition ${
+                      form.tipo_venta === 'peso'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>scale</span>
+                    Por peso (kg)
+                  </button>
+                </div>
               </div>
 
               {/* Actions */}
