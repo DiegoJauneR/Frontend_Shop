@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import AppTopBar from '../components/AppTopBar'
 import { getVentas } from '../services/ventas'
+import { useAuthStore } from '../store/authStore'
 import type { MetodoPago, Venta, VendedorStats } from '../types/venta'
+import { isAdminUser } from '../utils/permissions'
 
 const soulGradient = 'linear-gradient(135deg, #3a5f94 0%, #1f477b 100%)'
 
@@ -99,12 +101,14 @@ function downloadSalesCsv(sales: Venta[], period: PeriodFilter) {
 }
 
 export default function VentasPage() {
+  const { user } = useAuthStore()
   const [ventas, setVentas] = useState<Venta[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('day')
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeFilter>('all')
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentFilter>('all')
+  const canViewAllSales = isAdminUser(user)
 
   useEffect(() => {
     let mounted = true
@@ -189,6 +193,8 @@ export default function VentasPage() {
   const topEmployeeTotal = employeeStats[0]?.total ?? 0
   const selectedPeriodLabel = periodOptions.find(option => option.value === periodFilter)?.label ?? 'Periodo'
   const transactionLabel = filteredSales.length === 1 ? 'transacción' : 'transacciones'
+  const pageTitle = canViewAllSales ? 'Ventas' : 'Mis ventas'
+  const reportScopeLabel = canViewAllSales ? 'Reporte del equipo completo' : 'Reporte de tus ventas'
 
   return (
     <div className="bg-white font-body text-on-surface min-h-screen overflow-x-hidden">
@@ -203,12 +209,12 @@ export default function VentasPage() {
                 Reportes
               </div>
               <h1 className="text-[1.875rem] font-headline font-extrabold text-on-surface tracking-tight">
-                Ventas
+                {pageTitle}
               </h1>
               <p className="text-slate-500 text-sm mt-1">
                 {loading
                   ? 'Cargando ventas...'
-                  : `${filteredSales.length} ${transactionLabel} en ${selectedPeriodLabel.toLowerCase()} · Corte ${formatDate(referenceDate)}`}
+                  : `${reportScopeLabel} · ${filteredSales.length} ${transactionLabel} en ${selectedPeriodLabel.toLowerCase()} · Corte ${formatDate(referenceDate)}`}
               </p>
             </div>
 
@@ -256,20 +262,22 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xl:ml-auto">
-                <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2">
-                  <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 20 }}>badge</span>
-                  <select
-                    value={selectedEmployee}
-                    onChange={event => setSelectedEmployee(event.target.value)}
-                    className="w-full bg-transparent text-sm font-medium text-slate-700 focus:outline-none"
-                  >
-                    <option value="all">Todo el equipo</option>
-                    {uniqueEmployees.map(employee => (
-                      <option key={employee} value={employee}>{employee}</option>
-                    ))}
-                  </select>
-                </label>
+              <div className={`grid grid-cols-1 ${canViewAllSales ? 'sm:grid-cols-2' : ''} gap-3 xl:ml-auto`}>
+                {canViewAllSales && (
+                  <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2">
+                    <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 20 }}>badge</span>
+                    <select
+                      value={selectedEmployee}
+                      onChange={event => setSelectedEmployee(event.target.value)}
+                      className="w-full bg-transparent text-sm font-medium text-slate-700 focus:outline-none"
+                    >
+                      <option value="all">Todo el equipo</option>
+                      {uniqueEmployees.map(employee => (
+                        <option key={employee} value={employee}>{employee}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
 
                 <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2">
                   <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 20 }}>payments</span>
@@ -333,60 +341,62 @@ export default function VentasPage() {
             </div>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-              <h2 className="text-xl font-headline font-bold text-slate-900 flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">groups</span>
-                Ventas por vendedor/a
-              </h2>
-              {selectedEmployee !== 'all' && (
-                <button
-                  onClick={() => setSelectedEmployee('all')}
-                  className="text-sm font-headline font-bold text-primary hover:text-primary/80"
-                >
-                  Ver todo el equipo
-                </button>
-              )}
-            </div>
-
-            {employeeStats.length === 0 ? (
-              <div className="border border-dashed border-slate-200 rounded-2xl py-10 text-center text-slate-400 text-sm">
-                No hay ventas para los filtros seleccionados.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                {employeeStats.map(employee => (
+          {canViewAllSales && (
+            <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                <h2 className="text-xl font-headline font-bold text-slate-900 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">groups</span>
+                  Ventas por vendedor/a
+                </h2>
+                {selectedEmployee !== 'all' && (
                   <button
-                    key={employee.name}
-                    onClick={() => setSelectedEmployee(employee.name)}
-                    className={`text-left border rounded-2xl p-4 transition hover:shadow-md ${
-                      selectedEmployee === employee.name ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'
-                    }`}
+                    onClick={() => setSelectedEmployee('all')}
+                    className="text-sm font-headline font-bold text-primary hover:text-primary/80"
                   >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-headline font-extrabold">
-                        {getInitials(employee.name)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-headline font-bold text-slate-900 truncate">{employee.name}</p>
-                        <p className="text-xs text-slate-400">{employee.transactions} venta{employee.transactions !== 1 ? 's' : ''}</p>
-                      </div>
-                    </div>
-                    <div className="text-xl font-headline font-extrabold text-primary mb-2">
-                      {formatCurrency(employee.total)}
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${topEmployeeTotal ? (employee.total / topEmployeeTotal) * 100 : 0}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-slate-400 mt-2">{employee.products} producto{employee.products !== 1 ? 's' : ''}</p>
+                    Ver todo el equipo
                   </button>
-                ))}
+                )}
               </div>
-            )}
-          </section>
+
+              {employeeStats.length === 0 ? (
+                <div className="border border-dashed border-slate-200 rounded-2xl py-10 text-center text-slate-400 text-sm">
+                  No hay ventas para los filtros seleccionados.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {employeeStats.map(employee => (
+                    <button
+                      key={employee.name}
+                      onClick={() => setSelectedEmployee(employee.name)}
+                      className={`text-left border rounded-2xl p-4 transition hover:shadow-md ${
+                        selectedEmployee === employee.name ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-headline font-extrabold">
+                          {getInitials(employee.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-headline font-bold text-slate-900 truncate">{employee.name}</p>
+                          <p className="text-xs text-slate-400">{employee.transactions} venta{employee.transactions !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <div className="text-xl font-headline font-extrabold text-primary mb-2">
+                        {formatCurrency(employee.total)}
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${topEmployeeTotal ? (employee.total / topEmployeeTotal) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2">{employee.products} producto{employee.products !== 1 ? 's' : ''}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
             <div className="p-5 sm:p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppTopBar from '../components/AppTopBar'
 import { getVentas } from '../services/ventas'
+import { useAuthStore } from '../store/authStore'
 import type { Venta } from '../types/venta'
+import { isAdminUser } from '../utils/permissions'
 
 const soulGradient = 'linear-gradient(135deg, #3a5f94 0%, #1f477b 100%)'
 
@@ -34,6 +36,7 @@ function paymentTone(method: Venta['paymentMethod']) {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [recentSales, setRecentSales] = useState<Venta[]>([])
   const [loadingActivities, setLoadingActivities] = useState(true)
   const [activitiesError, setActivitiesError] = useState<string | null>(null)
@@ -64,6 +67,8 @@ export default function DashboardPage() {
   const totalRecentSales = useMemo(() => {
     return recentSales.reduce((sum, sale) => sum + sale.total, 0)
   }, [recentSales])
+  const canManageWorkers = isAdminUser(user)
+  const activityTitle = canManageWorkers ? 'Actividad reciente' : 'Mi actividad reciente'
 
   return (
     <div className="bg-white font-body text-on-surface min-h-screen overflow-x-hidden">
@@ -133,6 +138,21 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {canManageWorkers && (
+            <div onClick={() => navigate('/trabajadores')} className="bg-white border border-slate-200 hover:border-primary rounded-3xl p-8 group cursor-pointer flex flex-col justify-between min-h-[320px] relative overflow-hidden transition-all duration-300 hover:shadow-[0_20px_25px_-5px_rgba(58,95,148,0.1),0_10px_10px_-5px_rgba(58,95,148,0.04)]">
+              <div className="relative z-10">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                  <span className="material-symbols-outlined text-primary" style={{ fontSize: 30 }}>groups</span>
+                </div>
+                <h2 className="text-2xl font-headline font-bold text-slate-900 mb-2">Trabajadores</h2>
+                <p className="text-slate-500 text-sm leading-relaxed">Alta, edición de roles y estado de los usuarios del negocio.</p>
+              </div>
+              <div className="mt-8 flex justify-end">
+                <span className="material-symbols-outlined text-primary group-hover:translate-x-2 transition-transform">arrow_forward</span>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Secondary Info Section */}
@@ -141,7 +161,7 @@ export default function DashboardPage() {
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
               <h3 className="text-xl font-headline font-bold text-slate-900 flex items-center gap-3">
                 <span className="material-symbols-outlined text-primary">trending_up</span>
-                Actividad reciente
+                {activityTitle}
               </h3>
 
               {!loadingActivities && recentSales.length > 0 && (

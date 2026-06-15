@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { isAdminUser } from '../utils/permissions'
 
 const soulGradient = 'linear-gradient(135deg, #3a5f94 0%, #1f477b 100%)'
 
-type NavKey = 'inicio' | 'venta' | 'productos' | 'ventas'
+type NavKey = 'inicio' | 'venta' | 'productos' | 'ventas' | 'trabajadores'
 
 interface AppTopBarProps {
   active: NavKey
@@ -14,11 +15,13 @@ const navItems: Array<{ key: NavKey; label: string; path: string; icon: string }
   { key: 'venta', label: 'Venta', path: '/venta', icon: 'shopping_cart' },
   { key: 'productos', label: 'Productos', path: '/inventario', icon: 'inventory_2' },
   { key: 'ventas', label: 'Ventas', path: '/ventas', icon: 'analytics' },
+  { key: 'trabajadores', label: 'Trabajadores', path: '/trabajadores', icon: 'groups' },
 ]
 
 export default function AppTopBar({ active }: AppTopBarProps) {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
+  const visibleNavItems = navItems.filter(item => item.key !== 'trabajadores' || isAdminUser(user))
 
   function handleLogout() {
     logout()
@@ -44,7 +47,7 @@ export default function AppTopBar({ active }: AppTopBarProps) {
           </button>
 
           <div className="hidden md:flex items-center gap-8 font-headline text-sm font-semibold tracking-wide">
-            {navItems.map(item => (
+            {visibleNavItems.map(item => (
               <button
                 key={item.key}
                 type="button"
@@ -79,8 +82,11 @@ export default function AppTopBar({ active }: AppTopBarProps) {
         </div>
       </nav>
 
-      <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 grid grid-cols-4 items-center px-3 pb-5 pt-3 bg-white/90 backdrop-blur-xl border-t border-slate-100">
-        {navItems.map(item => {
+      <nav
+        className="md:hidden fixed bottom-0 left-0 w-full z-50 grid items-center px-3 pb-5 pt-3 bg-white/90 backdrop-blur-xl border-t border-slate-100"
+        style={{ gridTemplateColumns: `repeat(${visibleNavItems.length}, minmax(0, 1fr))` }}
+      >
+        {visibleNavItems.map(item => {
           const isActive = item.key === active
 
           return (

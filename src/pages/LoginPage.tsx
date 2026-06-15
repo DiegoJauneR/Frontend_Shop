@@ -10,7 +10,6 @@ import { useAuthStore } from '../store/authStore'
 const loginSchema = z.object({
   username: z.string().min(1, 'El usuario es requerido'),
   password: z.string().min(1, 'La contraseña es requerida'),
-  rememberMe: z.boolean().optional(),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -26,7 +25,6 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { rememberMe: false },
   })
 
   const loginMutation = useMutation({
@@ -180,23 +178,6 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Remember & Forgot */}
-            <div className="flex items-center justify-between px-1">
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <input
-                  {...register('rememberMe')}
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-outline text-primary focus:ring-primary transition-all accent-primary"
-                />
-                <span className="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">
-                  Recordarme
-                </span>
-              </label>
-              <a className="text-sm font-semibold text-primary hover:underline transition-colors" href="#">
-                ¿Olvidaste tu contraseña?
-              </a>
-            </div>
-
             {/* Submit Button */}
             <button
               type="submit"
@@ -217,15 +198,6 @@ export default function LoginPage() {
               )}
             </button>
 
-            {/* Sign up redirect */}
-            <div className="text-center pt-4">
-              <p className="text-on-surface-variant text-sm">
-                ¿No tienes una cuenta?{' '}
-                <a className="text-primary font-bold hover:underline ml-1" href="#">
-                  Regístrate
-                </a>
-              </p>
-            </div>
           </form>
         </div>
       </main>
