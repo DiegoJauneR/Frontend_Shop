@@ -1,8 +1,7 @@
 import { useNavigate } from 'react-router-dom'
+import { donOscarLogo } from '../assets/donOscarLogo'
 import { useAuthStore } from '../store/authStore'
 import { isAdminUser } from '../utils/permissions'
-
-const soulGradient = 'linear-gradient(135deg, #3a5f94 0%, #1f477b 100%)'
 
 type NavKey = 'inicio' | 'venta' | 'productos' | 'ventas' | 'trabajadores'
 
@@ -37,12 +36,11 @@ export default function AppTopBar({ active }: AppTopBarProps) {
             onClick={() => navigate('/dashboard')}
             className="flex items-center gap-3 text-xl font-bold tracking-tight text-slate-900 font-headline"
           >
-            <div
-              className="w-9 h-9 rounded-full shadow-sm flex items-center justify-center text-white font-bold text-xs"
-              style={{ background: soulGradient }}
-            >
-              DO
-            </div>
+            <img
+              src={donOscarLogo}
+              alt="Don Oscar"
+              className="w-10 h-10 rounded-full border border-slate-200 bg-white object-cover shadow-sm"
+            />
             <span>Don Oscar</span>
           </button>
 

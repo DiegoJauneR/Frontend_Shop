@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate, Navigate } from 'react-router-dom'
+import { donOscarLogo } from '../assets/donOscarLogo'
 import { login, getMe } from '../services/auth'
 import { useAuthStore } from '../store/authStore'
 
@@ -60,10 +61,12 @@ export default function LoginPage() {
       <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-surface-variant">
         <div className="flex justify-between items-center px-8 py-4 w-full max-w-screen-2xl mx-auto">
           <div className="text-xl font-extrabold tracking-tight text-primary flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">
-              DO
-            </div>
-            Don Oscar
+            <img
+              src={donOscarLogo}
+              alt="Don Oscar"
+              className="w-9 h-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm"
+            />
+            <span>Don Oscar</span>
           </div>
           <div className="flex items-center gap-8">
             <div className="hidden md:flex gap-8 items-center">
@@ -98,10 +101,12 @@ export default function LoginPage() {
         >
           {/* Logo & Title */}
           <div className="flex flex-col items-center mb-10">
-            <div className="bg-primary/5 p-4 rounded-full mb-6">
-              <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white font-extrabold text-2xl">
-                DO
-              </div>
+            <div className="bg-primary/5 p-4 rounded-3xl mb-6">
+              <img
+                src={donOscarLogo}
+                alt="Don Oscar"
+                className="w-16 h-16 rounded-2xl border border-slate-200 bg-white object-cover shadow-sm"
+              />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-on-surface">
               Iniciar sesión
