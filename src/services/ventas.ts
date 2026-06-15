@@ -28,11 +28,12 @@ const metodoPagoApiMap: Record<MetodoPago, ApiMetodoPago> = {
 function transformVenta(v: ApiVenta): Venta {
   return {
     id: String(v.id),
+    boletaId: v.boleta ? String(v.boleta.id_boleta) : undefined,
     date: v.fecha.slice(0, 10),
     time: v.fecha.slice(11, 16),
     employeeName: v.employee_name ?? `Usuario ${v.id_usuario}`,
     products: v.detalles?.length ?? 0,
-    total: v.total,
+    total: Number(v.total),
     paymentMethod: metodoPagoMap[v.tipo_pago] ?? 'Efectivo',
   }
 }
@@ -40,20 +41,23 @@ function transformVenta(v: ApiVenta): Venta {
 function transformProductoVenta(p: ApiProductoVenta): ProductoVenta {
   return {
     id: p.id,
-    codigo: p.codigo ?? '',
     cod_barra: p.cod_barra ?? '',
     categoria: p.categoria ?? '',
     nombre: p.nombre,
     precio: parseFloat(p.precio),
     costo: p.costo !== null ? parseFloat(p.costo) : null,
     unidad: p.unidad ?? 'unidad',
-    stock: p.stock ?? 0,
     tipo_venta: p.tipo_venta ?? 'unidad',
   }
 }
 
-export async function getVentas(): Promise<Venta[]> {
-  const response = await api.get<ApiVenta[]>('/ventas')
+interface GetVentasParams {
+  skip?: number
+  limit?: number
+}
+
+export async function getVentas(params?: GetVentasParams): Promise<Venta[]> {
+  const response = await api.get<ApiVenta[]>('/ventas', { params })
   return response.data.map(transformVenta)
 }
 
@@ -67,9 +71,9 @@ export async function getProductosVenta(): Promise<ProductoVenta[]> {
 export async function registrarVenta(data: NuevaVentaInput): Promise<VentaRegistrada> {
   const payload = {
     tipo_pago: metodoPagoApiMap[data.paymentMethod],
-    items: data.items.map(item => ({
+    detalles: data.items.map(item => ({
       id_producto: item.productoId,
-      cantidad: item.cantidad,
+      cantidad: item.peso !== undefined ? item.peso * item.cantidad : item.cantidad,
     })),
     comprobante: 'boleta',
     estado: 'pagado',
@@ -83,5 +87,8 @@ export async function registrarVenta(data: NuevaVentaInput): Promise<VentaRegist
     id: String(v.id),
     date: v.fecha.slice(0, 10),
     time: v.fecha.slice(11, 16),
+    employeeName: v.employee_name ?? data.employeeName,
+    total: Number(v.total),
+    boletaId: v.boleta ? String(v.boleta.id_boleta) : undefined,
   }
 }

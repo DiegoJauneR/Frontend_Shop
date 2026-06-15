@@ -7,7 +7,6 @@
     "nombre": "Coca Cola 600 ml",
     "precio": "1850.00",
     "costo": "950.00",
-    "stock": 48,
     "unidad": "unidad",
     "tipo_venta": "unidad"
   },
@@ -19,7 +18,6 @@
     "nombre": "Agua mineral 1.5 L",
     "precio": "1200.00",
     "costo": "600.00",
-    "stock": 64,
     "unidad": "unidad",
     "tipo_venta": "unidad"
   },
@@ -31,7 +29,6 @@
     "nombre": "Leche entera 1 L",
     "precio": "1450.00",
     "costo": "780.00",
-    "stock": 32,
     "unidad": "unidad",
     "tipo_venta": "unidad"
   },
@@ -43,7 +40,6 @@
     "nombre": "Pan de molde familiar",
     "precio": "2650.00",
     "costo": "1400.00",
-    "stock": 18,
     "unidad": "unidad",
     "tipo_venta": "unidad"
   },
@@ -55,7 +51,6 @@
     "nombre": "Yerba mate 1 kg",
     "precio": "4200.00",
     "costo": "2200.00",
-    "stock": 26,
     "unidad": "unidad",
     "tipo_venta": "unidad"
   },
@@ -67,7 +62,6 @@
     "nombre": "Arroz largo fino 1 kg",
     "precio": "1550.00",
     "costo": "800.00",
-    "stock": 40,
     "unidad": "unidad",
     "tipo_venta": "unidad"
   },
@@ -79,7 +73,6 @@
     "nombre": "Aceite girasol 900 ml",
     "precio": "3150.00",
     "costo": "1650.00",
-    "stock": 22,
     "unidad": "unidad",
     "tipo_venta": "unidad"
   },
@@ -91,7 +84,6 @@
     "nombre": "Huevos docena",
     "precio": "3900.00",
     "costo": "2100.00",
-    "stock": 15,
     "unidad": "pack",
     "tipo_venta": "unidad"
   },
@@ -103,7 +95,6 @@
     "nombre": "Manzana roja",
     "precio": "2800.00",
     "costo": "1400.00",
-    "stock": 38,
     "unidad": "kg",
     "tipo_venta": "peso"
   },
@@ -115,7 +106,6 @@
     "nombre": "Banana",
     "precio": "2100.00",
     "costo": "1000.00",
-    "stock": 42,
     "unidad": "kg",
     "tipo_venta": "peso"
   },
@@ -127,7 +117,6 @@
     "nombre": "Tomate redondo",
     "precio": "2400.00",
     "costo": "1200.00",
-    "stock": 30,
     "unidad": "kg",
     "tipo_venta": "peso"
   },
@@ -139,7 +128,6 @@
     "nombre": "Papa blanca",
     "precio": "1700.00",
     "costo": "800.00",
-    "stock": 55,
     "unidad": "kg",
     "tipo_venta": "peso"
   },
@@ -151,7 +139,6 @@
     "nombre": "Cebolla",
     "precio": "1500.00",
     "costo": "700.00",
-    "stock": 44,
     "unidad": "kg",
     "tipo_venta": "peso"
   },
@@ -163,7 +150,6 @@
     "nombre": "Limón",
     "precio": "2600.00",
     "costo": "1300.00",
-    "stock": 24,
     "unidad": "kg",
     "tipo_venta": "peso"
   }

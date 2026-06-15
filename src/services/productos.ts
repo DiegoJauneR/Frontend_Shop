@@ -17,8 +17,7 @@ export async function createProducto(data: ProductoFormData) {
   const payload = {
     nombre: data.nombre,
     precio: data.precio,
-    codigo: data.codigo || null,
-    cod_barra: data.cod_barra || null,
+    cod_barra: data.tipo_venta === 'unidad' ? data.cod_barra || null : null,
     categoria: data.categoria || null,
     costo: data.costo || null,
     unidad: data.unidad || 'unidad',
@@ -32,8 +31,9 @@ export async function updateProducto(id: number, data: Partial<ProductoFormData>
   const payload: Record<string, string | null | undefined> = {}
   if (data.nombre !== undefined) payload.nombre = data.nombre
   if (data.precio !== undefined) payload.precio = data.precio
-  if (data.codigo !== undefined) payload.codigo = data.codigo || null
-  if (data.cod_barra !== undefined) payload.cod_barra = data.cod_barra || null
+  if (data.cod_barra !== undefined || data.tipo_venta !== undefined) {
+    payload.cod_barra = data.tipo_venta === 'peso' ? null : data.cod_barra || null
+  }
   if (data.categoria !== undefined) payload.categoria = data.categoria || null
   if (data.costo !== undefined) payload.costo = data.costo || null
   if (data.unidad !== undefined) payload.unidad = data.unidad || 'unidad'

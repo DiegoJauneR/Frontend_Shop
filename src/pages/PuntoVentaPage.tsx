@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 import AppTopBar from '../components/AppTopBar'
 import { getProductosVenta, registrarVenta } from '../services/ventas'
 import type { MetodoPago, ProductoVenta, VentaRegistrada } from '../types/venta'
+import { useAuthStore } from '../store/authStore'
 
 const soulGradient = 'linear-gradient(135deg, #3a5f94 0%, #1f477b 100%)'
 
@@ -32,8 +33,84 @@ function paymentIcon(method: MetodoPago) {
   return 'account_balance'
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function formatLineQuantity(item: VentaRegistrada['items'][number]) {
+  if (item.peso !== undefined) {
+    const totalWeight = item.peso * item.cantidad
+    return `${totalWeight.toFixed(3)} kg`
+  }
+  return String(item.cantidad)
+}
+
+function printSaleReceipt(sale: VentaRegistrada) {
+  const printWindow = window.open('', '_blank', 'width=420,height=640')
+  if (!printWindow) return false
+
+  const rows = sale.items.map(item => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(item.nombre)}</strong>
+        <span>${formatLineQuantity(item)} x ${formatCurrency(item.precioUnitario)}</span>
+      </td>
+      <td>${formatCurrency(item.subtotal)}</td>
+    </tr>
+  `).join('')
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Boleta ${escapeHtml(sale.boletaId ?? sale.id)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #111827; margin: 0; padding: 24px; }
+          .receipt { max-width: 320px; margin: 0 auto; }
+          h1 { font-size: 20px; margin: 0 0 4px; text-align: center; }
+          .meta { font-size: 12px; color: #4b5563; text-align: center; margin-bottom: 16px; }
+          .row { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; margin: 4px 0; }
+          table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+          td { border-top: 1px solid #e5e7eb; padding: 8px 0; vertical-align: top; font-size: 12px; }
+          td:last-child { text-align: right; white-space: nowrap; }
+          strong { display: block; font-size: 12px; }
+          span { display: block; color: #6b7280; margin-top: 2px; }
+          .total { border-top: 2px solid #111827; padding-top: 10px; font-size: 16px; font-weight: 700; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <h1>Boleta</h1>
+          <div class="meta">Nro. ${escapeHtml(sale.boletaId ?? sale.id)}</div>
+          <div class="row"><span>Venta</span><strong>${escapeHtml(sale.id)}</strong></div>
+          <div class="row"><span>Fecha</span><strong>${escapeHtml(sale.date)} ${escapeHtml(sale.time)}</strong></div>
+          <div class="row"><span>Trabajador</span><strong>${escapeHtml(sale.employeeName)}</strong></div>
+          <div class="row"><span>Pago</span><strong>${escapeHtml(sale.paymentMethod)}</strong></div>
+          <table><tbody>${rows}</tbody></table>
+          <div class="row total"><span>Total</span><strong>${formatCurrency(sale.total)}</strong></div>
+        </div>
+        <script>
+          window.onload = () => {
+            window.print();
+            window.onafterprint = () => window.close();
+          };
+        </script>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+  return true
+}
+
 export default function PuntoVentaPage() {
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const { user } = useAuthStore()
 
   const [products, setProducts] = useState<ProductoVenta[]>([])
   const [cart, setCart] = useState<CarritoItem[]>([])
@@ -80,7 +157,6 @@ export default function PuntoVentaPage() {
     return products.filter(product => (
       product.nombre.toLowerCase().includes(query) ||
       product.cod_barra.includes(query) ||
-      product.codigo.toLowerCase().includes(query) ||
       product.categoria.toLowerCase().includes(query)
     ))
   }, [products, searchTerm])
@@ -89,6 +165,7 @@ export default function PuntoVentaPage() {
   const weightProducts = filteredProducts.filter(product => product.tipo_venta === 'peso')
   const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const employeeName = user?.full_name || user?.username || user?.email || 'Trabajador'
 
   function addToCart(product: ProductoVenta, weight?: number) {
     setScanMessage(null)
@@ -130,7 +207,7 @@ export default function PuntoVentaPage() {
     const code = scanCode.trim()
     if (!code) return
 
-    const product = products.find(item => item.cod_barra === code || item.codigo.toLowerCase() === code.toLowerCase())
+    const product = products.find(item => item.tipo_venta === 'unidad' && item.cod_barra === code)
 
     if (!product) {
       setScanMessage('Producto no encontrado.')
@@ -192,7 +269,7 @@ export default function PuntoVentaPage() {
     setError(null)
     try {
       const sale = await registrarVenta({
-        employeeName: 'Caja principal',
+        employeeName,
         paymentMethod,
         total,
         items: cart.map(item => ({
@@ -210,8 +287,9 @@ export default function PuntoVentaPage() {
       setCheckoutOpen(false)
       setPaymentMethod('Efectivo')
       scanInputRef.current?.focus()
-    } catch {
-      setError('No se pudo registrar la venta.')
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(detail ?? 'No se pudo registrar la venta.')
     } finally {
       setSavingSale(false)
     }
@@ -266,9 +344,23 @@ export default function PuntoVentaPage() {
           )}
 
           {lastSale && (
-            <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-6 py-4 text-sm flex items-center gap-3">
+            <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-6 py-4 text-sm flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="material-symbols-outlined text-emerald-600">check_circle</span>
-              Venta {lastSale.id} registrada por {formatCurrency(lastSale.total)}.
+              <span className="flex-1">
+                Venta {lastSale.id}{lastSale.boletaId ? ` · Boleta ${lastSale.boletaId}` : ''} registrada por {formatCurrency(lastSale.total)}.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!printSaleReceipt(lastSale)) {
+                    setError('No se pudo abrir la ventana de impresión. Revisá los permisos del navegador.')
+                  }
+                }}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-4 py-2 text-xs font-headline font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>print</span>
+                Imprimir boleta
+              </button>
             </div>
           )}
 
@@ -619,11 +711,13 @@ function ProductGroup({ title, icon, tone, products, loading, onSelect }: Produc
                   <span className="material-symbols-outlined">{isGreen ? 'scale' : 'inventory_2'}</span>
                 </div>
                 <span className="text-xs bg-slate-100 text-slate-500 rounded-full px-2 py-1">
-                  {product.stock} {product.unidad}
+                  {product.tipo_venta === 'peso' ? 'Por kg' : product.unidad}
                 </span>
               </div>
               <h3 className="text-sm font-headline font-bold text-slate-900 min-h-[40px]">{product.nombre}</h3>
-              <p className="text-xs text-slate-400 mt-2">{product.cod_barra}</p>
+              <p className="text-xs text-slate-400 mt-2">
+                {product.tipo_venta === 'unidad' && product.cod_barra ? product.cod_barra : product.categoria}
+              </p>
               <div className="flex items-end justify-between gap-3 mt-4">
                 <span className={`text-xl font-headline font-extrabold ${isGreen ? 'text-emerald-600' : 'text-primary'}`}>
                   {formatCurrency(product.precio)}

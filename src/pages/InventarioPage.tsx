@@ -19,6 +19,14 @@ function formatCurrency(value: string | null | undefined): string {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(num)
 }
 
+function suggestPriceFromCost(value: string): string {
+  const cost = Number(value)
+  if (!Number.isFinite(cost) || cost < 0 || value.trim() === '') return ''
+
+  const suggested = cost * 1.25
+  return suggested.toFixed(2).replace(/\.?0+$/, '')
+}
+
 export default function InventarioPage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,6 +43,8 @@ export default function InventarioPage() {
   const [form, setForm] = useState<ProductoFormData>(emptyProductoForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [priceEdited, setPriceEdited] = useState(false)
+  const [showCategoryOptions, setShowCategoryOptions] = useState(false)
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<Producto | null>(null)
@@ -67,6 +77,20 @@ export default function InventarioPage() {
     return Array.from(cats).sort()
   }, [productos])
 
+  const categorySuggestions = useMemo(() => {
+    const query = form.categoria.trim().toLowerCase()
+
+    return categories
+      .filter(cat => {
+        const normalized = cat.toLowerCase()
+        if (!query) return true
+        return normalized.includes(query) && normalized !== query
+      })
+      .slice(0, 6)
+  }, [categories, form.categoria])
+
+  const suggestedPrice = useMemo(() => suggestPriceFromCost(form.costo), [form.costo])
+
   // ---- Filtered + paginated ----
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -97,22 +121,26 @@ export default function InventarioPage() {
     setEditingProduct(null)
     setForm(emptyProductoForm)
     setFormError(null)
+    setPriceEdited(false)
+    setShowCategoryOptions(false)
     setModalOpen(true)
   }
 
   function openEdit(p: Producto) {
+    const tipoVenta = p.tipo_venta === 'peso' ? 'peso' : 'unidad'
     setEditingProduct(p)
     setForm({
-      codigo: p.codigo ?? '',
-      cod_barra: p.cod_barra ?? '',
+      cod_barra: tipoVenta === 'unidad' ? p.cod_barra ?? '' : '',
       categoria: p.categoria ?? '',
       nombre: p.nombre,
       costo: p.costo ?? '',
       precio: p.precio,
       unidad: p.unidad ?? 'unidad',
-      tipo_venta: (p.tipo_venta === 'peso' ? 'peso' : 'unidad'),
+      tipo_venta: tipoVenta,
     })
     setFormError(null)
+    setPriceEdited(true)
+    setShowCategoryOptions(false)
     setModalOpen(true)
   }
 
@@ -121,6 +149,30 @@ export default function InventarioPage() {
     setEditingProduct(null)
     setForm(emptyProductoForm)
     setFormError(null)
+    setPriceEdited(false)
+    setShowCategoryOptions(false)
+  }
+
+  function handleCostChange(value: string) {
+    setForm(current => ({
+      ...current,
+      costo: value,
+      precio: priceEdited ? current.precio : suggestPriceFromCost(value),
+    }))
+  }
+
+  function handlePriceChange(value: string) {
+    setPriceEdited(true)
+    setForm(current => ({ ...current, precio: value }))
+  }
+
+  function handleSaleTypeChange(tipoVenta: 'unidad' | 'peso') {
+    setForm(current => ({
+      ...current,
+      tipo_venta: tipoVenta,
+      unidad: tipoVenta === 'peso' ? 'kg' : 'unidad',
+      cod_barra: tipoVenta === 'peso' ? '' : current.cod_barra,
+    }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -323,9 +375,6 @@ export default function InventarioPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm font-semibold text-on-surface">{p.nombre}</span>
-                        {p.codigo && (
-                          <span className="block text-xs text-slate-400 font-mono">{p.codigo}</span>
-                        )}
                       </td>
                       <td className="px-6 py-4">
                         {p.categoria ? (
@@ -455,43 +504,40 @@ export default function InventarioPage() {
               </div>
 
               {/* Categoría */}
-              <div>
+              <div className="relative">
                 <label className="block text-xs font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
                   Categoría
                 </label>
                 <input
                   type="text"
-                  list="categorias-list"
                   value={form.categoria}
-                  onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+                  onFocus={() => setShowCategoryOptions(true)}
+                  onBlur={() => window.setTimeout(() => setShowCategoryOptions(false), 120)}
+                  onChange={e => {
+                    setForm(f => ({ ...f, categoria: e.target.value }))
+                    setShowCategoryOptions(true)
+                  }}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-                  placeholder="Ej: Textil"
+                  placeholder="Ej: Verdura"
                 />
-                <datalist id="categorias-list">
-                  {categories.map(cat => (
-                    <option key={cat} value={cat} />
-                  ))}
-                </datalist>
-                {categories.length > 0 && (
-                  <p className="text-xs text-slate-400 mt-1">Podés escribir una nueva o elegir una existente.</p>
+                {showCategoryOptions && categorySuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+                    {categorySuggestions.map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onMouseDown={event => {
+                          event.preventDefault()
+                          setForm(f => ({ ...f, categoria: cat }))
+                          setShowCategoryOptions(false)
+                        }}
+                        className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-primary/5 hover:text-primary transition"
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </div>
-
-              {/* Precio */}
-              <div>
-                <label className="block text-xs font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
-                  Precio <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.precio}
-                  onChange={e => setForm(f => ({ ...f, precio: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-                  placeholder="0.00"
-                  required
-                />
               </div>
 
               {/* Costo */}
@@ -504,39 +550,49 @@ export default function InventarioPage() {
                   min="0"
                   step="0.01"
                   value={form.costo}
-                  onChange={e => setForm(f => ({ ...f, costo: e.target.value }))}
+                  onChange={e => handleCostChange(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
                   placeholder="0.00"
                 />
               </div>
 
-              {/* Código */}
+              {/* Precio */}
               <div>
                 <label className="block text-xs font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
-                  Código Interno
+                  Precio <span className="text-red-400">*</span>
                 </label>
                 <input
-                  type="text"
-                  value={form.codigo}
-                  onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.precio}
+                  onChange={e => handlePriceChange(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-                  placeholder="Ej: SKU-001"
+                  placeholder="0.00"
+                  required
                 />
+                {suggestedPrice && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Sugerido por costo: {formatCurrency(suggestedPrice)}
+                  </p>
+                )}
               </div>
 
               {/* Código de barras */}
-              <div>
-                <label className="block text-xs font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
-                  Código de Barras
-                </label>
-                <input
-                  type="text"
-                  value={form.cod_barra}
-                  onChange={e => setForm(f => ({ ...f, cod_barra: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-                  placeholder="Ej: 779012345678"
-                />
-              </div>
+              {form.tipo_venta === 'unidad' && (
+                <div>
+                  <label className="block text-xs font-headline font-bold text-slate-500 uppercase tracking-widest mb-2">
+                    Código de Barras
+                  </label>
+                  <input
+                    type="text"
+                    value={form.cod_barra}
+                    onChange={e => setForm(f => ({ ...f, cod_barra: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
+                    placeholder="Ej: 779012345678"
+                  />
+                </div>
+              )}
 
               {/* Tipo de venta */}
               <div>
@@ -546,7 +602,7 @@ export default function InventarioPage() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, tipo_venta: 'unidad', unidad: 'unidad' }))}
+                    onClick={() => handleSaleTypeChange('unidad')}
                     className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-headline font-bold border transition ${
                       form.tipo_venta === 'unidad'
                         ? 'border-primary bg-primary/5 text-primary'
@@ -558,7 +614,7 @@ export default function InventarioPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, tipo_venta: 'peso', unidad: 'kg' }))}
+                    onClick={() => handleSaleTypeChange('peso')}
                     className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-headline font-bold border transition ${
                       form.tipo_venta === 'peso'
                         ? 'border-primary bg-primary/5 text-primary'
