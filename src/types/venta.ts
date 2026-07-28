@@ -1,6 +1,7 @@
 // ─── Display types (used by VentasPage, PuntoVentaPage) ─────────────────────
 export type MetodoPago = 'Efectivo' | 'Tarjeta' | 'Transferencia'
-export type TipoProductoVenta = 'unidad' | 'peso'
+export type TipoProductoVenta = 'unidad' | 'peso' | 'balanza'
+export type OrigenVentaItem = 'PRODUCTO' | 'BALANZA'
 
 export interface Venta {
   id: string
@@ -29,15 +30,22 @@ export interface ProductoVenta {
   costo: number | null
   unidad: string
   tipo_venta: TipoProductoVenta
+  origen?: OrigenVentaItem
+  ticketBalanza?: string
+  codigoBalanza?: string
 }
 
 export interface VentaDetalleInput {
-  productoId: number
+  productoId?: number
   nombre: string
   cantidad: number
   peso?: number
   precioUnitario: number
   subtotal: number
+  origen?: OrigenVentaItem
+  ticketBalanza?: string
+  codigoBalanza?: string
+  totalBalanza?: number
 }
 
 export interface NuevaVentaInput {
@@ -62,7 +70,7 @@ export type ApiComprobante = 'boleta' | 'factura' | 'cotizacion'
 export interface ApiVentaDetalle {
   id: number
   id_venta: number
-  id_producto: number
+  id_producto: number | null
   codigo_producto: string | null
   nombre_producto: string
   cantidad: number | string
@@ -119,4 +127,12 @@ export interface ApiProductoVenta {
   costo: string | null
   unidad: string
   tipo_venta: 'unidad' | 'peso'
+}
+
+export interface TicketBalanzaInfo {
+  codigo_barra: string
+  numero_ticket: string
+  total: number | string
+  origen: 'BALANZA'
+  nombre_producto: string
 }

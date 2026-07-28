@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import AppTopBar from '../components/AppTopBar'
-import { getProductosVenta, registrarVenta } from '../services/ventas'
-import type { MetodoPago, ProductoVenta, VentaRegistrada } from '../types/venta'
+import { getProductosVenta, registrarVenta, validarTicketBalanza } from '../services/ventas'
+import type { MetodoPago, ProductoVenta, TicketBalanzaInfo, VentaRegistrada } from '../types/venta'
 import { useAuthStore } from '../store/authStore'
 
 const soulGradient = 'linear-gradient(135deg, #3a5f94 0%, #1f477b 100%)'
+const SCANNER_RESET_DELAY_MS = 100
+const MIN_SCANNER_CODE_LENGTH = 5
+const SCALE_TICKET_PREFIX = '29'
 
 interface CarritoItem {
   product: ProductoVenta
@@ -23,6 +26,7 @@ function formatCurrency(value: number) {
 }
 
 function getSubtotal(product: ProductoVenta, quantity: number, weight?: number) {
+  if (product.origen === 'BALANZA') return product.precio
   if (product.tipo_venta === 'peso') return product.precio * (weight ?? 0) * quantity
   return product.precio * quantity
 }
@@ -108,8 +112,30 @@ function printSaleReceipt(sale: VentaRegistrada) {
   return true
 }
 
+function buildScaleTicketProduct(ticket: TicketBalanzaInfo): ProductoVenta {
+  const ticketNumber = String(ticket.numero_ticket)
+  const total = Number(ticket.total)
+
+  return {
+    id: -(Number.parseInt(ticketNumber, 10) || Date.now()),
+    cod_barra: ticket.codigo_barra,
+    categoria: 'BALANZA',
+    nombre: ticket.nombre_producto || `Productos pesados - Ticket ${ticketNumber}`,
+    precio: total,
+    costo: null,
+    unidad: 'ticket',
+    tipo_venta: 'balanza',
+    origen: 'BALANZA',
+    ticketBalanza: ticketNumber,
+    codigoBalanza: ticket.codigo_barra,
+  }
+}
+
 export default function PuntoVentaPage() {
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const scannerBufferRef = useRef('')
+  const scannerLastKeyAtRef = useRef(0)
   const { user } = useAuthStore()
 
   const [products, setProducts] = useState<ProductoVenta[]>([])
@@ -167,7 +193,7 @@ export default function PuntoVentaPage() {
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const employeeName = user?.full_name || user?.username || user?.email || 'Trabajador'
 
-  function addToCart(product: ProductoVenta, weight?: number) {
+  const addToCart = useCallback((product: ProductoVenta, weight?: number) => {
     setScanMessage(null)
     setLastSale(null)
     setCart(current => {
@@ -199,15 +225,58 @@ export default function PuntoVentaPage() {
         },
       ]
     })
-  }
+  }, [])
 
-  function handleScan(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== 'Enter') return
+  const addScaleTicketToCart = useCallback((ticket: TicketBalanzaInfo) => {
+    const product = buildScaleTicketProduct(ticket)
 
-    const code = scanCode.trim()
+    if (!Number.isFinite(product.precio) || product.precio <= 0) {
+      setScanMessage('El total de la boleta de balanza no es valido.')
+      return
+    }
+
+    const alreadyInCart = cart.some(item => (
+      item.product.origen === 'BALANZA' &&
+      item.product.ticketBalanza === product.ticketBalanza
+    ))
+
+    if (alreadyInCart) {
+      setScanMessage(`El ticket ${product.ticketBalanza} ya esta en la boleta.`)
+      return
+    }
+
+    setScanMessage(null)
+    setLastSale(null)
+    setCart(current => [
+      ...current,
+      {
+        product,
+        quantity: 1,
+        subtotal: product.precio,
+      },
+    ])
+  }, [cart])
+
+  const submitScannedCode = useCallback(async (rawCode: string) => {
+    const code = rawCode.trim()
     if (!code) return
 
-    const product = products.find(item => item.tipo_venta === 'unidad' && item.cod_barra === code)
+    if (code.startsWith(SCALE_TICKET_PREFIX)) {
+      try {
+        const ticket = await validarTicketBalanza(code)
+        addScaleTicketToCart(ticket)
+      } catch (err) {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        setScanMessage(detail ?? 'No se pudo validar la boleta de balanza.')
+      } finally {
+        setScanCode('')
+        setSearchTerm('')
+        window.setTimeout(() => scanInputRef.current?.focus(), 0)
+      }
+      return
+    }
+
+    const product = products.find(item => item.cod_barra === code)
 
     if (!product) {
       setScanMessage('Producto no encontrado.')
@@ -222,13 +291,85 @@ export default function PuntoVentaPage() {
     }
 
     setScanCode('')
+    setSearchTerm('')
+    window.setTimeout(() => scanInputRef.current?.focus(), 0)
+  }, [addScaleTicketToCart, addToCart, products])
+
+  function handleScan(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') return
+
+    event.preventDefault()
+    void submitScannedCode(event.currentTarget.value)
   }
+
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') return
+
+    const code = event.currentTarget.value.trim()
+    if (code.startsWith(SCALE_TICKET_PREFIX)) {
+      event.preventDefault()
+      void submitScannedCode(code)
+      return
+    }
+
+    const product = products.find(item => item.cod_barra === code)
+    if (!product) return
+
+    event.preventDefault()
+    void submitScannedCode(code)
+  }
+
+  useEffect(() => {
+    function handleWindowScan(event: globalThis.KeyboardEvent) {
+      if (checkoutOpen || selectedProduct) return
+
+      const target = event.target as HTMLElement | null
+      if (target === scanInputRef.current) return
+
+      const isEditable = Boolean(
+        target?.isContentEditable ||
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      )
+
+      if (event.ctrlKey || event.altKey || event.metaKey) return
+      if (isEditable) return
+
+      const now = window.performance.now()
+      if (now - scannerLastKeyAtRef.current > SCANNER_RESET_DELAY_MS) {
+        scannerBufferRef.current = ''
+      }
+      scannerLastKeyAtRef.current = now
+
+      if (event.key === 'Enter') {
+        const code = scannerBufferRef.current
+        scannerBufferRef.current = ''
+
+        if (code.trim().length >= MIN_SCANNER_CODE_LENGTH) {
+          event.preventDefault()
+          void submitScannedCode(code)
+        }
+        return
+      }
+
+      if (event.key.length === 1) {
+        scannerBufferRef.current += event.key
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('keydown', handleWindowScan)
+    return () => window.removeEventListener('keydown', handleWindowScan)
+  }, [checkoutOpen, selectedProduct, submitScannedCode])
 
   function updateQuantity(index: number, delta: number) {
     setCart(current => {
       const next = current
         .map((item, itemIndex) => {
           if (itemIndex !== index) return item
+          if (item.product.origen === 'BALANZA') return item
+
           const quantity = item.quantity + delta
 
           return {
@@ -273,12 +414,16 @@ export default function PuntoVentaPage() {
         paymentMethod,
         total,
         items: cart.map(item => ({
-          productoId: item.product.id,
+          productoId: item.product.origen === 'BALANZA' ? undefined : item.product.id,
           nombre: item.product.nombre,
           cantidad: item.quantity,
           peso: item.weight,
           precioUnitario: item.product.precio,
           subtotal: item.subtotal,
+          origen: item.product.origen ?? 'PRODUCTO',
+          ticketBalanza: item.product.ticketBalanza,
+          codigoBalanza: item.product.codigoBalanza,
+          totalBalanza: item.product.origen === 'BALANZA' ? item.subtotal : undefined,
         })),
       })
 
@@ -387,9 +532,11 @@ export default function PuntoVentaPage() {
                   <label className="relative block">
                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                     <input
+                      ref={searchInputRef}
                       type="text"
                       value={searchTerm}
                       onChange={event => setSearchTerm(event.target.value)}
+                      onKeyDown={handleSearchKeyDown}
                       placeholder="Buscar producto"
                       className="w-full border border-slate-200 rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
                     />
@@ -446,12 +593,14 @@ export default function PuntoVentaPage() {
                 ) : (
                   <div className="space-y-3">
                     {cart.map((item, index) => (
-                      <div key={`${item.product.id}-${item.weight ?? 'unit'}`} className="border border-slate-200 rounded-2xl p-3">
+                      <div key={`${item.product.codigoBalanza ?? item.product.id}-${item.weight ?? 'unit'}`} className="border border-slate-200 rounded-2xl p-3">
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <div className="min-w-0">
                             <h3 className="text-sm font-headline font-bold text-slate-900">{item.product.nombre}</h3>
                             <p className="text-xs text-slate-400 mt-1">
-                              {item.product.tipo_venta === 'peso'
+                              {item.product.origen === 'BALANZA'
+                                ? `Ticket ${item.product.ticketBalanza} - BALANZA`
+                                : item.product.tipo_venta === 'peso'
                                 ? `${item.weight?.toFixed(3)} kg · ${formatCurrency(item.product.precio)}/kg`
                                 : `${formatCurrency(item.product.precio)} c/u`}
                             </p>
@@ -467,25 +616,31 @@ export default function PuntoVentaPage() {
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => updateQuantity(index, -1)}
-                              className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 transition"
-                              aria-label="Restar"
-                            >
-                              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>remove</span>
-                            </button>
-                            <span className="w-8 text-center text-sm font-headline font-bold text-slate-700">{item.quantity}</span>
-                            <button
-                              type="button"
-                              onClick={() => updateQuantity(index, 1)}
-                              className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 transition"
-                              aria-label="Sumar"
-                            >
-                              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
-                            </button>
-                          </div>
+                          {item.product.origen === 'BALANZA' ? (
+                            <span className="text-xs font-headline font-bold uppercase tracking-widest text-slate-400">
+                              Cantidad 1
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(index, -1)}
+                                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 transition"
+                                aria-label="Restar"
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>remove</span>
+                              </button>
+                              <span className="w-8 text-center text-sm font-headline font-bold text-slate-700">{item.quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(index, 1)}
+                                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 transition"
+                                aria-label="Sumar"
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+                              </button>
+                            </div>
+                          )}
                           <div className="text-sm font-headline font-extrabold text-slate-900">
                             {formatCurrency(item.subtotal)}
                           </div>

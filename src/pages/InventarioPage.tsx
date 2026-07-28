@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
+import type { KeyboardEvent } from 'react'
 import AppTopBar from '../components/AppTopBar'
 import {
   getProductos,
@@ -11,6 +12,8 @@ import { emptyProductoForm } from '../types/producto'
 
 const soulGradient = 'linear-gradient(135deg, #3a5f94 0%, #1f477b 100%)'
 const PAGE_SIZE = 10
+const SCANNER_RESET_DELAY_MS = 250
+const MIN_SCANNER_CODE_LENGTH = 5
 
 function formatCurrency(value: string | null | undefined): string {
   if (!value) return '—'
@@ -28,6 +31,9 @@ function suggestPriceFromCost(value: string): string {
 }
 
 export default function InventarioPage() {
+  const barcodeInputRef = useRef<HTMLInputElement>(null)
+  const scannerBufferRef = useRef('')
+  const scannerLastKeyAtRef = useRef(0)
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,6 +74,13 @@ export default function InventarioPage() {
     loadProductos()
   }, [])
 
+  useEffect(() => {
+    if (!modalOpen || form.tipo_venta !== 'unidad') return
+
+    const focusTimer = window.setTimeout(() => barcodeInputRef.current?.focus(), 80)
+    return () => window.clearTimeout(focusTimer)
+  }, [modalOpen, form.tipo_venta])
+
   // ---- Derived categories ----
   const categories = useMemo(() => {
     const cats = new Set<string>()
@@ -98,6 +111,7 @@ export default function InventarioPage() {
       const matchesCat = !selectedCategoria || p.categoria === selectedCategoria
       const matchesSearch = !q ||
         p.nombre.toLowerCase().includes(q) ||
+        (p.cod_barra ?? '').toLowerCase().includes(q) ||
         String(p.id).includes(q)
       return matchesCat && matchesSearch
     })
@@ -117,16 +131,21 @@ export default function InventarioPage() {
   }
 
   // ---- Modal helpers ----
-  function openCreate() {
+  const openCreate = useCallback((initialBarcode = '') => {
     setEditingProduct(null)
-    setForm(emptyProductoForm)
+    setForm({
+      ...emptyProductoForm,
+      cod_barra: initialBarcode,
+      tipo_venta: 'unidad',
+      unidad: 'unidad',
+    })
     setFormError(null)
     setPriceEdited(false)
     setShowCategoryOptions(false)
     setModalOpen(true)
-  }
+  }, [])
 
-  function openEdit(p: Producto) {
+  const openEdit = useCallback((p: Producto) => {
     const tipoVenta = p.tipo_venta === 'peso' ? 'peso' : 'unidad'
     setEditingProduct(p)
     setForm({
@@ -142,7 +161,7 @@ export default function InventarioPage() {
     setPriceEdited(true)
     setShowCategoryOptions(false)
     setModalOpen(true)
-  }
+  }, [])
 
   function closeModal() {
     setModalOpen(false)
@@ -174,6 +193,85 @@ export default function InventarioPage() {
       cod_barra: tipoVenta === 'peso' ? '' : current.cod_barra,
     }))
   }
+
+  const openProductFromBarcode = useCallback((rawCode: string) => {
+    const code = rawCode.trim()
+    if (!code) return
+
+    const product = productos.find(p => (p.cod_barra ?? '').trim() === code)
+    if (product) {
+      openEdit(product)
+      return
+    }
+
+    openCreate(code)
+  }, [openCreate, openEdit, productos])
+
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') return
+
+    const code = event.currentTarget.value.trim()
+    const product = productos.find(p => (p.cod_barra ?? '').trim() === code)
+    const looksLikeBarcode = code.length >= MIN_SCANNER_CODE_LENGTH && /^\d+$/.test(code)
+
+    if (!product && !looksLikeBarcode) return
+
+    event.preventDefault()
+    openProductFromBarcode(code)
+  }
+
+  useEffect(() => {
+    if (modalOpen || deleteTarget) return
+
+    function handleWindowScan(event: globalThis.KeyboardEvent) {
+      if (event.ctrlKey || event.altKey || event.metaKey) return
+
+      const target = event.target as HTMLElement | null
+      const isTextInput = target instanceof HTMLInputElement && ![
+        'button',
+        'checkbox',
+        'color',
+        'file',
+        'image',
+        'radio',
+        'range',
+        'reset',
+        'submit',
+      ].includes(target.type)
+      const isEditable = Boolean(
+        target?.isContentEditable ||
+        isTextInput ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      )
+      if (isEditable) return
+
+      const now = window.performance.now()
+      if (now - scannerLastKeyAtRef.current > SCANNER_RESET_DELAY_MS) {
+        scannerBufferRef.current = ''
+      }
+      scannerLastKeyAtRef.current = now
+
+      if (event.key === 'Enter') {
+        const code = scannerBufferRef.current
+        scannerBufferRef.current = ''
+
+        if (code.trim().length >= MIN_SCANNER_CODE_LENGTH) {
+          event.preventDefault()
+          openProductFromBarcode(code)
+        }
+        return
+      }
+
+      if (event.key.length === 1) {
+        scannerBufferRef.current += event.key
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('keydown', handleWindowScan)
+    return () => window.removeEventListener('keydown', handleWindowScan)
+  }, [deleteTarget, modalOpen, openProductFromBarcode])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -242,7 +340,8 @@ export default function InventarioPage() {
                 type="text"
                 value={searchQuery}
                 onChange={e => handleSearchChange(e.target.value)}
-                placeholder="Nombre o ID..."
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Nombre, ID o codigo..."
                 className="w-full border border-slate-200 rounded-xl pl-9 pr-8 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
               />
               {searchQuery && (
@@ -315,7 +414,7 @@ export default function InventarioPage() {
                 </p>
               </div>
               <button
-                onClick={openCreate}
+                onClick={() => openCreate()}
                 className="text-white rounded-full px-8 py-3 font-headline font-bold text-xs tracking-widest uppercase flex items-center gap-2 active:scale-95 transition-transform shadow-[0_20px_25px_-5px_rgba(58,95,148,0.1)]"
                 style={{ background: soulGradient }}
               >
@@ -585,9 +684,17 @@ export default function InventarioPage() {
                     Código de Barras
                   </label>
                   <input
+                    ref={barcodeInputRef}
                     type="text"
                     value={form.cod_barra}
                     onChange={e => setForm(f => ({ ...f, cod_barra: e.target.value }))}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                      }
+                    }}
+                    autoComplete="off"
+                    inputMode="numeric"
                     className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
                     placeholder="Ej: 779012345678"
                   />

@@ -6,6 +6,7 @@ import type {
   MetodoPago,
   NuevaVentaInput,
   ProductoVenta,
+  TicketBalanzaInfo,
   Venta,
   VentaRegistrada,
 } from '../types/venta'
@@ -71,10 +72,22 @@ export async function getProductosVenta(): Promise<ProductoVenta[]> {
 export async function registrarVenta(data: NuevaVentaInput): Promise<VentaRegistrada> {
   const payload = {
     tipo_pago: metodoPagoApiMap[data.paymentMethod],
-    detalles: data.items.map(item => ({
-      id_producto: item.productoId,
-      cantidad: item.peso !== undefined ? item.peso * item.cantidad : item.cantidad,
-    })),
+    detalles: data.items.map(item => {
+      if (item.origen === 'BALANZA') {
+        return {
+          origen: 'BALANZA',
+          cod_barra: item.codigoBalanza,
+          ticket_balanza: item.ticketBalanza,
+          total_balanza: item.totalBalanza ?? item.subtotal,
+          cantidad: 1,
+        }
+      }
+
+      return {
+        id_producto: item.productoId,
+        cantidad: item.peso !== undefined ? item.peso * item.cantidad : item.cantidad,
+      }
+    }),
     comprobante: 'boleta',
     estado: 'pagado',
   }
@@ -91,4 +104,9 @@ export async function registrarVenta(data: NuevaVentaInput): Promise<VentaRegist
     total: Number(v.total),
     boletaId: v.boleta ? String(v.boleta.id_boleta) : undefined,
   }
+}
+
+export async function validarTicketBalanza(codigoBarra: string): Promise<TicketBalanzaInfo> {
+  const response = await api.get<TicketBalanzaInfo>(`/ventas/tickets-balanza/${codigoBarra}/validar`)
+  return response.data
 }
